@@ -124,32 +124,6 @@ OUTPUT_NAME = "merged_dataset_2026.csv"
 PATTERN = "*.csv"
 ```
 
-## Kept columns
-
-The script keeps only the columns listed in `EXPECTED_COLUMNS`.
-
-Current study columns:
-
-```text
-isSZZBugIntroducer
-age
-revision
-nrOfFunctions
-dok0.004Sum
-dok0.004AuthorPreCommit
-totalLoc
-relativeModified
-dok0.004AuthorPostCommit
-modified
-totalAuthors
-dok0.004Avg
-totalRefactors
-authors
-isRefactor
-180fileHcpf
-180commitHcpf
-```
-
 ---
 
 # 2. Clean Dataset
@@ -196,27 +170,6 @@ TARGET = "isSZZBugIntroducer"
 NEGATIVE_HANDLING = "replace_with_nan"
 DROP_MISSING_TARGET = True
 DROP_ALL_FEATURES_MISSING = True
-```
-
-## Selected features
-
-```text
-age
-revision
-nrOfFunctions
-dok0.004Sum
-dok0.004AuthorPreCommit
-totalLoc
-relativeModified
-dok0.004AuthorPostCommit
-modified
-totalAuthors
-dok0.004Avg
-totalRefactors
-authors
-isRefactor
-180fileHcpf
-180commitHcpf
 ```
 
 ## Negative value handling
@@ -309,18 +262,6 @@ data_isSZZBugIntroducer_classification/models_42/training_report.txt
 data_isSZZBugIntroducer_classification/models_42/training_report.json
 ```
 
-## Main settings inside the script
-
-```python
-TARGET = "isSZZBugIntroducer"
-RANDOM_STATE = 42
-VAL_SIZE = 0.2
-TRAIN_MINORITY_FRACTION = 0.9
-N_VAL_EXCERPTS = 100
-VAL_MINORITY_FRACTION = 0.9
-SKIP_BAYES_OPTIMIZATION = False
-```
-
 ## Important output files
 
 ```text
@@ -332,10 +273,6 @@ The trained CatBoost model.
 ```text
 features.json
 ```
-
-The exact feature list used during training.
-
----
 
 # 5. Evaluate Trained Model
 
@@ -463,28 +400,6 @@ The script creates:
 
 ---
 
-# Main Feature List
-
-```text
-age
-revision
-nrOfFunctions
-dok0.004Sum
-dok0.004AuthorPreCommit
-totalLoc
-relativeModified
-dok0.004AuthorPostCommit
-modified
-totalAuthors
-dok0.004Avg
-totalRefactors
-authors
-isRefactor
-180fileHcpf
-180commitHcpf
-```
-
----
 
 # Main Target
 
@@ -500,22 +415,6 @@ Class meaning:
 0 = not defect-inducing
 1 = defect-inducing
 ```
-
----
-
-# Entropy Variables
-
-## `180fileHcpf`
-
-This is the file-based entropy metric.
-
-It describes how recent code churn is distributed across files.
-
-## `180commitHcpf`
-
-This is the commit-based entropy metric.
-
-It describes how recent code churn is distributed across commits.
 
 ---
 
@@ -560,7 +459,4 @@ python 05_pairwise_correlation_analysis.py
 - All settings are edited directly in the scripts.
 - No command-line arguments are required.
 - The scripts assume CSV input data.
-- The pipeline uses `RANDOM_STATE = 42` where applicable.
-- The model is saved as a native CatBoost `.cbm` file.
-- The file `features.json` is required for evaluation.
-- The preclean script is intentionally not included in this README.
+- The best model is saved as a native CatBoost `.cbm` file.
