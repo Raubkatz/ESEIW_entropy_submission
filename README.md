@@ -1,53 +1,79 @@
 # Commit Entropy Defect Prediction Pipeline
 
-## Overview
+## Scope
 
-This repository implements the experimental pipeline for studying commit entropy as a predictor of defect-inducing commits.
+This repository contains the Python scripts used to prepare data, train classifiers, evaluate results, and analyze feature relationships for the commit entropy defect prediction study.
 
-The workflow covers:
+The main goal is to compare two entropy-based process metrics:
 
-- merging repository-level CSV files,
-- selecting study features,
-- cleaning target-specific datasets,
-- generating train/test splits,
-- training CatBoost classifiers,
-- evaluating trained models,
-- analyzing feature relationships.
+- `180fileHcpf`: code-change entropy across files
+- `180commitHcpf`: commit entropy across commits
 
-The central comparison is between:
+The pipeline predicts:
 
-- `180fileHcpf` → code-change entropy,
-- `180commitHcpf` → commit entropy.
+- `isSZZBugIntroducer`
 
-The pipeline is intentionally configuration-driven.  
-All parameters are configured directly inside the Python scripts.
-
-No command-line argument parsing is used.
+This means the model predicts whether a commit is classified as defect-inducing.
 
 ---
 
-# Repository Structure
+# Python Version
+
+Recommended Python version:
 
 ```text
-├── 00a_data_analysis_merge_projects.py
-├── 01a_clean_data_Classifier.py
-├── 02a_train_test_split.py
-├── 03a_train_CatBoost_Classifier.py
-├── 04a_post_hoc_classifier.py
-├── 05_pairwise_correlation_analysis.py
-│
-├── DATA_ESEIW_final/
-├── DATA_ESEIW_merged_csv/
-├── data_isSZZBugIntroducer_classification/
-├── correlation_analysis_results_*/
-└── README.md
+Python 3.11
+```
+
+Tested/recommended package versions:
+
+```text
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+catboost==1.2.5
+imbalanced-learn==0.12.3
+matplotlib==3.9.1
+seaborn==0.13.2
+scipy==1.14.0
+scikit-optimize==0.10.2
+```
+
+Install with:
+
+```bash
+pip install pandas==2.2.2 numpy==1.26.4 scikit-learn==1.5.1 catboost==1.2.5 imbalanced-learn==0.12.3 matplotlib==3.9.1 seaborn==0.13.2 scipy==1.14.0 scikit-optimize==0.10.2
+```
+
+Recommended Conda setup:
+
+```bash
+conda create -n commit_entropy python=3.11
+conda activate commit_entropy
+
+pip install pandas==2.2.2 numpy==1.26.4 scikit-learn==1.5.1 catboost==1.2.5 imbalanced-learn==0.12.3 matplotlib==3.9.1 seaborn==0.13.2 scipy==1.14.0 scikit-optimize==0.10.2
 ```
 
 ---
 
-# Full Pipeline Order
+# Repository Scripts
 
-Run the scripts in the following order:
+```text
+00a_data_analysis_merge_projects.py
+01a_clean_data_Classifier.py
+02a_train_test_split.py
+03a_train_CatBoost_Classifier.py
+04a_post_hoc_classifier.py
+05_pairwise_correlation_analysis.py
+```
+
+The pre-cleaning script is not part of this README.
+
+---
+
+# Full Run Order
+
+Run the scripts in this order:
 
 ```bash
 python 00a_data_analysis_merge_projects.py
@@ -60,7 +86,7 @@ python 05_pairwise_correlation_analysis.py
 
 ---
 
-# 1. Merge Per-Project CSV Files
+# 1. Merge Project CSV Files
 
 ## Script
 
@@ -68,55 +94,39 @@ python 05_pairwise_correlation_analysis.py
 python 00a_data_analysis_merge_projects.py
 ```
 
-## Purpose
+## What it does
 
-This script merges all per-project CSV files into one unified dataset.
+This script reads all project CSV files from the input folder and combines them into one merged dataset.
 
-Each input CSV represents one software repository or software project.
+It also checks that all project files follow the same expected column structure.
 
-The script:
-
-- reads all project CSV files,
-- detects delimiters automatically,
-- aligns schemas,
-- inserts missing expected columns,
-- removes unexpected columns,
-- concatenates all project tables,
-- writes one merged dataset.
-
-The script also inserts provenance metadata:
+## Input
 
 ```text
-source_file
-source_project
+DATA_ESEIW_final/
 ```
 
-before merging.
+This folder should contain the project-level CSV files.
 
----
+## Output
 
-## Main Configuration
+```text
+DATA_ESEIW_merged_csv/merged_dataset_2026.csv
+DATA_ESEIW_merged_csv/merge_report.json
+```
+
+## Main settings inside the script
 
 ```python
 INPUT_DIR = "DATA_ESEIW_final"
 OUT_DIR = "DATA_ESEIW_merged_csv"
 OUTPUT_NAME = "merged_dataset_2026.csv"
 PATTERN = "*.csv"
-
-SCHEMA_CHECK = True
-KEEP_EXTRA_COLS = False
-WRITE_PARQUET = False
 ```
 
----
+## Kept columns
 
-## Expected Columns
-
-The merge script keeps only columns defined in:
-
-```python
-EXPECTED_COLUMNS
-```
+The script keeps only the columns listed in `EXPECTED_COLUMNS`.
 
 Current study columns:
 
@@ -142,29 +152,7 @@ isRefactor
 
 ---
 
-## Outputs
-
-```text
-DATA_ESEIW_merged_csv/
-├── merged_dataset_2026.csv
-└── merge_report.json
-```
-
----
-
-## Merge Report
-
-The generated report documents:
-
-- number of rows per file,
-- missing expected columns,
-- extra columns,
-- original column count,
-- final column count.
-
----
-
-# 2. Clean Dataset and Select Features
+# 2. Clean Dataset
 
 ## Script
 
@@ -172,62 +160,45 @@ The generated report documents:
 python 01a_clean_data_Classifier.py
 ```
 
-## Purpose
+## What it does
 
-This script constructs the cleaned target-specific machine-learning dataset.
+This script prepares the merged dataset for machine learning.
 
-The script performs:
+It:
 
-1. target selection,
-2. feature selection,
-3. datatype normalization,
-4. missing-value handling,
-5. negative-value handling,
-6. descriptive-statistics generation,
-7. LaTeX table export.
+- selects the target column,
+- selects the feature columns,
+- checks missing values,
+- checks negative values,
+- handles negative values,
+- creates the cleaned dataset,
+- writes basic statistics.
 
----
+## Input
 
-## Main Configuration
+```text
+DATA_ESEIW_merged_csv/merged_dataset_2026.csv
+```
+
+## Output
+
+```text
+data_isSZZBugIntroducer_classification/cleaned_dataset.csv
+data_isSZZBugIntroducer_classification/sanity_report.txt
+data_isSZZBugIntroducer_classification/sanity_report.json
+data_isSZZBugIntroducer_classification/stats_tables/
+```
+
+## Main settings inside the script
 
 ```python
-INPUT_CSV = Path("DATA_ESEIW_merged_csv") / "merged_dataset_2026.csv"
-
 TARGET = "isSZZBugIntroducer"
-
 NEGATIVE_HANDLING = "replace_with_nan"
-
 DROP_MISSING_TARGET = True
 DROP_ALL_FEATURES_MISSING = True
-
-PROJECT_COL = "source_project"
 ```
 
----
-
-## Supported Targets
-
-```text
-isBugPresent
-isBugfix
-isSZZBugIntroducer
-```
-
----
-
-## Current Target
-
-```text
-isSZZBugIntroducer
-```
-
-This target marks commits identified as defect-inducing by the SZZ-based labeling process.
-
----
-
-## Selected Features
-
-The current study uses:
+## Selected features
 
 ```text
 age
@@ -248,9 +219,7 @@ isRefactor
 180commitHcpf
 ```
 
----
-
-## Negative Value Handling
+## Negative value handling
 
 Current setting:
 
@@ -258,55 +227,11 @@ Current setting:
 NEGATIVE_HANDLING = "replace_with_nan"
 ```
 
-Supported modes:
-
-```text
-discard
-replace_with_nan
-none
-```
-
-Meaning:
-
-- `discard`
-  → remove rows containing negative numeric feature values.
-
-- `replace_with_nan`
-  → convert negative numeric values into missing values.
-
-- `none`
-  → perform no negative-value processing.
+This means negative numeric feature values are replaced with missing values.
 
 ---
 
-## Statistics Generation
-
-The script computes:
-
-- feature missingness,
-- feature distributions,
-- target distributions,
-- descriptive statistics,
-- per-project statistics.
-
----
-
-## Outputs
-
-```text
-data_isSZZBugIntroducer_classification/
-├── cleaned_dataset.csv
-├── sanity_report.txt
-├── sanity_report.json
-└── stats_tables/
-    ├── stats_overall.tex
-    ├── stats_by_source_project.tex
-    └── stats_by_source_project.zip
-```
-
----
-
-# 3. Train/Test Split
+# 3. Create Train/Test Split
 
 ## Script
 
@@ -314,86 +239,35 @@ data_isSZZBugIntroducer_classification/
 python 02a_train_test_split.py
 ```
 
-## Purpose
+## What it does
 
-This script creates train/test splits from the cleaned dataset.
+This script splits the cleaned dataset into training and test data.
 
-The script reads:
+By default, it uses a stratified split.  
+This keeps the target-class distribution similar in train and test data.
+
+## Input
 
 ```text
 data_isSZZBugIntroducer_classification/cleaned_dataset.csv
 ```
 
-and writes train/test CSV files.
+## Output
 
----
+```text
+data_isSZZBugIntroducer_classification/splits_42/train.csv
+data_isSZZBugIntroducer_classification/splits_42/test.csv
+data_isSZZBugIntroducer_classification/splits_42/split_report.json
+```
 
-## Main Configuration
+## Main settings inside the script
 
 ```python
 TARGET = "isSZZBugIntroducer"
-
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
-
 STRATIFY = True
-
-GROUP_COL = None
-REQUIRE_GROUP_HOLDOUT = False
 ```
-
----
-
-## Split Logic
-
-By default, the script performs a stratified random split.
-
-This preserves the class distribution approximately between:
-
-- training data,
-- test data.
-
----
-
-## Optional Group-Aware Split
-
-The script also supports group-aware splitting through:
-
-```python
-GROUP_COL
-```
-
-using:
-
-```python
-GroupShuffleSplit
-```
-
-This can be used for repository-aware evaluation.
-
----
-
-## Outputs
-
-```text
-data_isSZZBugIntroducer_classification/
-└── splits_42/
-    ├── train.csv
-    ├── test.csv
-    └── split_report.json
-```
-
----
-
-## Split Report
-
-The split report contains:
-
-- row counts,
-- selected features,
-- target distributions,
-- split mode,
-- train/test row counts.
 
 ---
 
@@ -405,154 +279,65 @@ The split report contains:
 python 03a_train_CatBoost_Classifier.py
 ```
 
-## Purpose
+## What it does
 
-This script trains and selects CatBoost-based defect prediction models.
+This script trains the defect prediction model.
 
-The workflow compares:
+It:
 
-1. an out-of-the-box CatBoost model,
-2. a Bayesian-optimized CatBoost model.
+- reads the training and test data,
+- creates an internal validation split,
+- balances the training data by undersampling,
+- trains CatBoost models,
+- optionally runs Bayesian hyperparameter optimization,
+- selects the best model,
+- saves the final model and reports.
 
-The better model is selected and saved.
+## Input
 
----
+```text
+data_isSZZBugIntroducer_classification/splits_42/train.csv
+data_isSZZBugIntroducer_classification/splits_42/test.csv
+```
 
-## Main Configuration
+## Output
+
+```text
+data_isSZZBugIntroducer_classification/models_42/best_model.cbm
+data_isSZZBugIntroducer_classification/models_42/features.json
+data_isSZZBugIntroducer_classification/models_42/training_report.txt
+data_isSZZBugIntroducer_classification/models_42/training_report.json
+```
+
+## Main settings inside the script
 
 ```python
 TARGET = "isSZZBugIntroducer"
-
 RANDOM_STATE = 42
-
 VAL_SIZE = 0.2
-STRATIFY = True
-
-N_REPEATS = 1
-
 TRAIN_MINORITY_FRACTION = 0.9
-
 N_VAL_EXCERPTS = 100
 VAL_MINORITY_FRACTION = 0.9
-
-SELECTION_METRIC = "val_balanced_f1"
-
 SKIP_BAYES_OPTIMIZATION = False
-
-BAYES_N_ITER = 20
-BAYES_CV = 3
-BAYES_SCORING = "f1"
 ```
 
----
-
-## Workflow
-
-The script performs:
-
-1. internal train/validation splitting,
-2. balanced undersampling,
-3. optional Bayesian optimization,
-4. validation evaluation,
-5. candidate comparison,
-6. final model selection.
-
----
-
-## Balanced Undersampling
-
-Training uses balanced undersampling.
-
-The configuration:
-
-```python
-TRAIN_MINORITY_FRACTION = 0.9
-```
-
-means:
-
-- keep 90% of the minority-class samples,
-- sample the same number from the majority class.
-
-This creates balanced training subsets.
-
----
-
-## Validation Strategy
-
-Validation uses repeated balanced excerpts:
-
-```python
-N_VAL_EXCERPTS = 100
-VAL_MINORITY_FRACTION = 0.9
-```
-
-This reduces bias caused by strong class imbalance.
-
----
-
-## Bayesian Optimization
-
-Optional hyperparameter optimization uses:
-
-```python
-BayesSearchCV
-```
-
-The search space includes:
-
-```python
-depth
-iterations
-learning_rate
-l2_leaf_reg
-border_count
-```
-
----
-
-## CatBoost Handling
-
-Categorical columns are detected automatically.
-
-Object/string/category columns are:
-
-- converted to string,
-- passed through `cat_features`.
-
----
-
-## Outputs
+## Important output files
 
 ```text
-data_isSZZBugIntroducer_classification/
-└── models_42/
-    ├── best_model.cbm
-    ├── features.json
-    ├── training_report.txt
-    └── training_report.json
+best_model.cbm
 ```
 
----
+The trained CatBoost model.
 
-## Saved Artifacts
+```text
+features.json
+```
 
-### `best_model.cbm`
-
-Saved CatBoost model.
-
-### `features.json`
-
-Stores:
-
-- selected feature list,
-- target column.
-
-This is required by the post-hoc evaluation script.
+The exact feature list used during training.
 
 ---
 
-# 5. Post-Hoc Model Evaluation
+# 5. Evaluate Trained Model
 
 ## Script
 
@@ -560,82 +345,51 @@ This is required by the post-hoc evaluation script.
 python 04a_post_hoc_classifier.py
 ```
 
-## Purpose
+## What it does
 
-This script evaluates the saved CatBoost model.
+This script evaluates the trained model.
 
-It does not retrain the model.
+It does not train a new model.
 
-The script loads:
+It:
 
-```text
-best_model.cbm
-features.json
-test.csv
-```
+- loads `best_model.cbm`,
+- loads `features.json`,
+- loads the test data,
+- computes classification reports,
+- creates confusion matrices,
+- creates feature-importance plots,
+- creates boxplots for important features.
 
-and generates evaluation reports and plots.
-
----
-
-## Main Configuration
-
-```python
-TARGET = "isSZZBugIntroducer"
-
-RANDOM_STATE = 42
-
-MODEL_PATH = "./data_isSZZBugIntroducer_classification/models_42/best_model.cbm"
-
-FEATURES_JSON_PATH = "./data_isSZZBugIntroducer_classification/models_42/features.json"
-
-TEST_DATA_PATH = "./data_isSZZBugIntroducer_classification/splits_42/test.csv"
-```
-
----
-
-## Evaluation Modes
-
-### Raw Evaluation
-
-Uses the test set directly.
-
-This reflects the natural class imbalance.
-
----
-
-### Balanced Evaluation
-
-Uses repeated balanced undersampling of the test set.
-
-This estimates model behavior when both classes occur equally often.
-
----
-
-## Generated Outputs
-
-The script produces:
-
-- raw confusion matrices,
-- balanced confusion matrices,
-- normalized confusion matrices,
-- classification reports,
-- feature-importance plots,
-- feature boxplots grouped by predicted class.
-
----
-
-## Outputs
+## Input
 
 ```text
-data_isSZZBugIntroducer_classification/
-└── models_42/
-    └── Results_CatBoost_Classifier/
-        ├── confusion_matrices/
-        ├── feature_importance/
-        ├── result_txts/
-        └── boxplots/
+data_isSZZBugIntroducer_classification/models_42/best_model.cbm
+data_isSZZBugIntroducer_classification/models_42/features.json
+data_isSZZBugIntroducer_classification/splits_42/test.csv
 ```
+
+## Output
+
+```text
+data_isSZZBugIntroducer_classification/models_42/Results_CatBoost_Classifier/
+```
+
+This folder contains:
+
+```text
+confusion_matrices/
+feature_importance/
+result_txts/
+boxplots/
+```
+
+## Evaluation types
+
+The script reports:
+
+- raw test-set performance,
+- balanced test-set performance using repeated undersampling.
 
 ---
 
@@ -647,35 +401,9 @@ data_isSZZBugIntroducer_classification/
 python 05_pairwise_correlation_analysis.py
 ```
 
-## Purpose
+## What it does
 
-This script performs pairwise statistical analysis between two selected dataset columns.
-
-The script supports:
-
-- feature-feature analysis,
-- feature-target analysis,
-- entropy-entropy analysis,
-- arbitrary column comparisons.
-
----
-
-## Main Configuration
-
-```python
-TARGET = "isSZZBugIntroducer"
-
-CLEANED_DATA_KIND = "classification"
-
-USE_OBJ_PREFIX = False
-
-FEATURE_1 = "180fileHcpf"
-FEATURE_2 = "180commitHcpf"
-```
-
----
-
-## Default Entropy Analysis
+This script analyzes the relationship between two selected columns.
 
 The default analysis compares:
 
@@ -684,14 +412,29 @@ The default analysis compares:
 180commitHcpf
 ```
 
-These correspond to:
+This is the main comparison between file entropy and commit entropy.
 
-- file-level code-change entropy,
-- commit-level churn entropy.
+## Input
 
----
+```text
+data_isSZZBugIntroducer_classification/cleaned_dataset.csv
+```
 
-## Statistical Methods
+## Output
+
+```text
+correlation_analysis_results_isSZZBugIntroducer_classification/
+```
+
+## Main settings inside the script
+
+```python
+TARGET = "isSZZBugIntroducer"
+FEATURE_1 = "180fileHcpf"
+FEATURE_2 = "180commitHcpf"
+```
+
+## Statistics produced
 
 The script computes:
 
@@ -703,44 +446,24 @@ The script computes:
 - adjusted R²,
 - RMSE,
 - MAE,
-- residual standard error,
 - bootstrap confidence intervals.
 
----
+## Plots produced
 
-## Plot Outputs
+The script creates:
 
-The script saves:
-
-- scatter plots,
-- scatter plots with binned means,
-- residual plots,
-- residual histograms,
-- Q-Q plots,
-- observed-vs-fitted plots,
-- hexbin density plots,
-- rank-rank scatter plots.
+- scatter plot,
+- scatter plot with binned means,
+- residual plot,
+- residual histogram,
+- Q-Q plot,
+- observed-vs-fitted plot,
+- hexbin density plot,
+- rank-rank plot.
 
 ---
 
-## Outputs
-
-```text
-correlation_analysis_results_isSZZBugIntroducer_classification/
-└── 180fileHcpf_vs_180commitHcpf_correlation_analysis/
-    ├── samplewise_all_rows.csv
-    ├── samplewise_pairwise_complete_sorted.csv
-    ├── correlation_report.txt
-    ├── correlation_summary.json
-    ├── *.png
-    └── *.eps
-```
-
----
-
-# Main Study Features
-
-The current study uses:
+# Main Feature List
 
 ```text
 age
@@ -769,7 +492,14 @@ isRefactor
 isSZZBugIntroducer
 ```
 
-This target represents defect-inducing commits identified using the SZZ-based labeling process.
+This target is used for binary classification.
+
+Class meaning:
+
+```text
+0 = not defect-inducing
+1 = defect-inducing
+```
 
 ---
 
@@ -777,191 +507,60 @@ This target represents defect-inducing commits identified using the SZZ-based la
 
 ## `180fileHcpf`
 
-File-side code-change entropy.
+This is the file-based entropy metric.
 
-Measures how recent churn is distributed across files.
-
----
+It describes how recent code churn is distributed across files.
 
 ## `180commitHcpf`
 
-Commit-side churn entropy.
+This is the commit-based entropy metric.
 
-Measures how recent churn is distributed across commits.
-
----
-
-# Main Research Question
-
-The central research question is whether commit entropy provides predictive information beyond traditional code-change entropy for defect-inducing commit prediction.
-
-The study compares four classifier configurations:
-
-1. no entropy features,
-2. file entropy only,
-3. commit entropy only,
-4. both entropy metrics together.
+It describes how recent code churn is distributed across commits.
 
 ---
 
-# Main Output Folders
+# Expected Output Folders
 
-## Merged Dataset
+After running the full pipeline, the main folders are:
 
 ```text
 DATA_ESEIW_merged_csv/
-```
-
-Contains:
-
-- merged dataset,
-- merge report.
-
----
-
-## Cleaned Dataset
-
-```text
 data_isSZZBugIntroducer_classification/
-```
-
-Contains:
-
-- cleaned dataset,
-- sanity reports,
-- statistics tables,
-- train/test splits,
-- trained models,
-- evaluation outputs.
-
----
-
-## Statistics Tables
-
-```text
-data_isSZZBugIntroducer_classification/stats_tables/
-```
-
-Contains LaTeX-ready descriptive statistics.
-
----
-
-## Train/Test Splits
-
-```text
-data_isSZZBugIntroducer_classification/splits_42/
-```
-
-Contains:
-
-- train.csv,
-- test.csv,
-- split reports.
-
----
-
-## Trained Models
-
-```text
-data_isSZZBugIntroducer_classification/models_42/
-```
-
-Contains:
-
-- CatBoost model,
-- training reports,
-- feature definitions.
-
----
-
-## Evaluation Outputs
-
-```text
-data_isSZZBugIntroducer_classification/models_42/Results_CatBoost_Classifier/
-```
-
-Contains:
-
-- confusion matrices,
-- feature importance,
-- classification reports,
-- boxplots.
-
----
-
-## Correlation Analysis Outputs
-
-```text
 correlation_analysis_results_isSZZBugIntroducer_classification/
 ```
 
-Contains pairwise statistical analysis outputs.
-
 ---
 
-# Dependencies
-
-Install required packages:
+# Minimal Usage Summary
 
 ```bash
-pip install pandas numpy scikit-learn catboost imbalanced-learn matplotlib seaborn scipy scikit-optimize
+# 1. Merge all project CSV files
+python 00a_data_analysis_merge_projects.py
+
+# 2. Clean and select features
+python 01a_clean_data_Classifier.py
+
+# 3. Create train/test split
+python 02a_train_test_split.py
+
+# 4. Train CatBoost model
+python 03a_train_CatBoost_Classifier.py
+
+# 5. Evaluate trained model
+python 04a_post_hoc_classifier.py
+
+# 6. Analyze entropy correlation
+python 05_pairwise_correlation_analysis.py
 ```
 
 ---
 
-# Recommended Environment
+# Notes
 
-A Conda environment is recommended.
-
-Example:
-
-```bash
-conda create -n commit_entropy python=3.11
-conda activate commit_entropy
-
-pip install pandas numpy scikit-learn catboost imbalanced-learn matplotlib seaborn scipy scikit-optimize
-```
-
----
-
-# Reproducibility Notes
-
-Most scripts use:
-
-```python
-RANDOM_STATE = 42
-```
-
-This affects:
-
-- train/test splitting,
-- undersampling,
-- validation excerpts,
-- model selection.
-
-Because repeated undersampling and Bayesian optimization are used, exact results may still vary slightly depending on:
-
-- package versions,
-- operating system,
-- hardware,
-- CatBoost backend.
-
----
-
-# Important Notes
-
-- All configuration happens directly inside the Python scripts.
-- No CLI argument parsing is used.
-- Missing expected columns are automatically inserted during merging.
-- Extra columns are removed during merging.
-- The post-hoc evaluation script requires:
-  - `best_model.cbm`
-  - `features.json`
-  - `test.csv`
-- The correlation-analysis script operates on the cleaned target-specific dataset.
-- The preclean script is intentionally not documented in this README.
-- The workflow is designed for reproducible software-engineering experiments using heterogeneous repository datasets.
-- CatBoost is used because it naturally supports:
-  - missing values,
-  - categorical variables,
-  - feature importance analysis.
+- All settings are edited directly in the scripts.
+- No command-line arguments are required.
+- The scripts assume CSV input data.
+- The pipeline uses `RANDOM_STATE = 42` where applicable.
+- The model is saved as a native CatBoost `.cbm` file.
+- The file `features.json` is required for evaluation.
+- The preclean script is intentionally not included in this README.
